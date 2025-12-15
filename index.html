@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Map + Weatherbit + TomTom</title>
+    <!-- Leaflet CSS for OpenStreetMap -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Explorer</h1>
+      <!--Do we need this div?-->
+      <div class="controls">
+        <input id="search-input" type="text" placeholder="Search a place (OpenStreetMap)" />
+        <button id="btn-my-location" title="Use my location">📍</button>
+        <select id="poi-category" title="POI category (TomTom)">
+          <option value="restaurant" selected>Restaurants</option>
+          <option value="gas station">Gas Stations</option>
+          <option value="cafe">Cafes</option>
+          <option value="hotel">Hotels</option>
+          <option value="parking">Parking</option>
+          <option value="pharmacy">Pharmacies</option>
+          <option value="supermarket">Supermarkets</option>
+          <option value="atm">ATMs</option>
+        </select>
+        <button id="btn-refresh-poi">Find Nearby</button>
+        <button id="btn-toggle-traffic" title="Toggle traffic layer">🚦 Traffic</button>
+        <button id="btn-toggle-routing" title="Toggle routing mode">🗺️ Route</button>
+        <button id="btn-toggle-incidents" title="View local incidents">⚠️ Incidents</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="sidebar">
+        <div class="panel">
+          <h2>Weather</h2>
+          <div id="weather" class="weather">Set a location to load weather…</div>
+        </div>
+        <div class="panel">
+          <h2>Nearby (TomTom)</h2>
+          <ul id="poi-list" class="poi-list"></ul>
+        </div>
+        <div class="panel" id="traffic-panel" style="display:none;">
+          <h2>Traffic Monitor</h2>
+          <div class="traffic-legend">
+            <div class="traffic-status">Traffic layer: <span id="traffic-status">Off</span></div>
+            <div class="legend-item"><span class="legend-color" style="background:#22c55e;"></span> Free flow</div>
+            <div class="legend-item"><span class="legend-color" style="background:#facc15;"></span> Moderate</div>
+            <div class="legend-item"><span class="legend-color" style="background:#fb923c;"></span> Heavy</div>
+            <div class="legend-item"><span class="legend-color" style="background:#ef4444;"></span> Congestion</div>
+            <div class="legend-item"><span class="legend-color" style="background:#991b1b;"></span> Blocked</div>
+          </div>
+          <div class="speed-display" id="speed-display" style="margin-top:12px;display:none;">
+            <strong>Current Area Speed:</strong>
+            <div id="speed-info" style="margin-top:4px;color:var(--muted);">Move map to update</div>
+          </div>
+          <div style="margin-top:12px;">
+            <h3 style="font-size:14px;margin:0 0 8px;">Incidents Nearby</h3>
+            <div id="incidents-list" class="incidents-list">Loading incidents...</div>
+          </div>
+        </div>
+        <div class="panel" id="incidents-panel" style="display:none;">
+          <h2>Local Incidents</h2>
+          <div id="incidents-standalone-list" class="incidents-list">Click button to load incidents...</div>
+        </div>
+      </section>
+      <section class="map-wrap">
+        <div id="map" class="map"></div>
+      </section>
+    </main>
+
+    <!-- Right Sidebar for Route Planner -->
+    <aside id="route-sidebar" class="route-sidebar">
+      <div class="route-sidebar-header">
+        <h2>Route Planner</h2>
+        <button id="btn-close-route-sidebar" class="close-btn" title="Close">×</button>
+      </div>
+      <div class="route-sidebar-content">
+        <div id="routing-status" style="margin-bottom:12px;color:var(--accent-2);">
+          Click two points on the map or enter locations below
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block;">Start Location</label>
+          <div style="display:flex;gap:4px;">
+            <input id="route-start-input" type="text" placeholder="Enter start address..." style="flex:1;background:#0f172a;color:var(--text);border:1px solid #243041;padding:6px 8px;border-radius:6px;" />
+            <button id="btn-set-start" style="padding:6px 12px;background:#152033;color:var(--text);border:1px solid #243041;border-radius:6px;cursor:pointer;" title="Set as start">🟢</button>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block;">End Location</label>
+          <div style="display:flex;gap:4px;">
+            <input id="route-end-input" type="text" placeholder="Enter destination address..." style="flex:1;background:#0f172a;color:var(--text);border:1px solid #243041;padding:6px 8px;border-radius:6px;" />
+            <button id="btn-set-end" style="padding:6px 12px;background:#152033;color:var(--text);border:1px solid #243041;border-radius:6px;cursor:pointer;" title="Set as destination">🔴</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+          <span style="font-size:12px;color:var(--muted);">Replace pin on next map click:</span>
+          <button id="btn-replace-start" style="padding:6px 10px;background:#152033;color:var(--text);border:1px solid #243041;border-radius:6px;cursor:pointer;">Start</button>
+          <button id="btn-replace-end" style="padding:6px 10px;background:#152033;color:var(--text);border:1px solid #243041;border-radius:6px;cursor:pointer;">End</button>
+        </div>
+        <div id="route-summary" style="display:none;margin-bottom:12px;">
+          <div><strong>Distance:</strong> <span id="route-distance">-</span></div>
+          <div><strong>Duration:</strong> <span id="route-duration">-</span></div>
+          <div><strong>Arrival:</strong> <span id="route-arrival">-</span></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <select id="route-mode" style="flex:1;background:#0f172a;color:var(--text);border:1px solid #243041;padding:6px 8px;border-radius:6px;">
+            <option value="car" selected>Car</option>
+            <option value="truck">Truck</option>
+            <option value="taxi">Taxi</option>
+            <option value="bus">Bus</option>
+            <option value="van">Van</option>
+            <option value="motorcycle">Motorcycle</option>
+            <option value="bicycle">Bicycle</option>
+            <option value="pedestrian">Walking</option>
+          </select>
+          <button id="btn-clear-route" style="padding:6px 12px;background:#152033;color:var(--text);border:1px solid #243041;border-radius:6px;cursor:pointer;">Clear</button>
+        </div>
+        <div>
+          <h3 style="font-size:14px;margin:0 0 8px;">Directions</h3>
+          <div id="directions-list" class="directions-list">No route calculated yet</div>
+        </div>
+      </div>
+    </aside>
+
+    <!--le mao-->
+    <div id="setup-overlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h3>Setup Required</h3>
+        <p>
+          Create a <code>config.js</code> based on <code>config.example.js</code> and add your Weatherbit and TomTom API keys. OpenStreetMap via Leaflet requires no key. Restrict keys to your localhost and production domains.
+        </p>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button id="overlay-close">Dismiss</button>
+          <a href="README.md" target="_blank" rel="noopener" class="link">Read setup guide</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load user config first (ignored by git). It's OK if this 404s; the app will show a setup overlay. -->
+    <script src="config.js" defer></script>
+    <!-- Leaflet JS -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+      defer
+    ></script>
+    <script src="js/main.js" type="module"></script>
+  </body>
+  </html>
