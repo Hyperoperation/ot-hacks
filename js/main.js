@@ -111,6 +111,7 @@ function setLocation(pos) {
     state.placeMarker.setLatLng([pos.lat, pos.lng]);
   }
   loadWeather(pos).catch(() => {});
+  loadAirQuality(pos).catch(() => {});
   refreshPOIs().catch(() => {});
   if (state.weatherOverlayEnabled) {
     updateWeatherOverlay();
@@ -171,6 +172,71 @@ async function loadWeather({ lat, lng }) {
   } catch (e) {
     weatherEl.textContent = 'Failed to load weather.';
   }
+}
+
+async function loadAirQuality({ lat, lng }) {
+  const target = document.getElementById('air-quality');
+  if (!target) return;
+  target.textContent = 'Loading air quality…';
+
+  // Open-Meteo Air Quality API (no key required)
+  const url = new URL('https://air-quality-api.open-meteo.com/v1/air-quality');
+  url.searchParams.set('latitude', lat);
+  url.searchParams.set('longitude', lng);
+  url.searchParams.set('hourly', 'pm10,pm2_5,carbon_monoxide,ozone,nitrogen_dioxide,sulphur_dioxide,us_aqi');
+  url.searchParams.set('timezone', 'auto');
+
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error('AQI fetch failed');
+    const data = await res.json();
+    const hourly = data && data.hourly;
+    if (!hourly || !hourly.time || hourly.time.length === 0) throw new Error('No AQI data');
+
+    // Use the latest available index
+    const idx = hourly.time.length - 1;
+    const pick = (arr) => Array.isArray(arr) ? arr[idx] : null;
+
+    const aqi = pick(hourly.us_aqi);
+    const pm25 = pick(hourly.pm2_5);
+    const pm10 = pick(hourly.pm10);
+    const o3 = pick(hourly.ozone);
+    const no2 = pick(hourly.nitrogen_dioxide);
+    const so2 = pick(hourly.sulphur_dioxide);
+    const co = pick(hourly.carbon_monoxide);
+
+    const category = describeAqi(aqi);
+
+    target.innerHTML = `
+      <div class="aqi-score ${category.className}">${Number.isFinite(aqi) ? Math.round(aqi) : '--'}</div>
+      <div class="aqi-meta">${category.label}</div>
+      <div class="aqi-metrics">
+        <span>PM2.5: ${fmt(pm25)} µg/m³</span>
+        <span>PM10: ${fmt(pm10)} µg/m³</span>
+        <span>O₃: ${fmt(o3)} µg/m³</span>
+        <span>NO₂: ${fmt(no2)} µg/m³</span>
+        <span>SO₂: ${fmt(so2)} µg/m³</span>
+        <span>CO: ${fmt(co)} µg/m³</span>
+      </div>
+      <div class="aqi-foot">Source: Open-Meteo • AQI (US EPA)</div>
+    `;
+  } catch (e) {
+    target.textContent = 'Failed to load air quality.';
+  }
+}
+
+function fmt(val) {
+  return Number.isFinite(val) ? val.toFixed(1) : '--';
+}
+
+function describeAqi(aqi) {
+  if (!Number.isFinite(aqi)) return { label: 'Unknown', className: 'aqi-unknown' };
+  if (aqi <= 50) return { label: 'Good', className: 'aqi-good' };
+  if (aqi <= 100) return { label: 'Moderate', className: 'aqi-moderate' };
+  if (aqi <= 150) return { label: 'Unhealthy for SG', className: 'aqi-usg' };
+  if (aqi <= 200) return { label: 'Unhealthy', className: 'aqi-unhealthy' };
+  if (aqi <= 300) return { label: 'Very Unhealthy', className: 'aqi-very' };
+  return { label: 'Hazardous', className: 'aqi-hazard' };
 }
 
 function mapWeatherCodeToOverlay(code) {
@@ -955,6 +1021,7 @@ async function main() {
     useMyLocation().catch(() => setLocation(state.currentLatLng));
     // Also load weather/POIs for fallback location immediately
     loadWeather(state.currentLatLng).catch(() => {});
+    loadAirQuality(state.currentLatLng).catch(() => {});
     refreshPOIs().catch(() => {});
   } catch (e) {
     const map = document.getElementById('map');
