@@ -1,27 +1,60 @@
-// Minimal frontend app using Leaflet (OpenStreetMap) for the map,
-// Weatherbit for current weather, and TomTom Search for POIs near a coordinate.
+/*
+  Explorer App — map + traffic + routing + weather + transit + AQI
 
+  Stack:
+  - Leaflet + OpenStreetMap: base map & markers
+  - TomTom: traffic flow tiles, incidents, search POIs, routing
+  - Weatherbit: current weather (panel + overlay label)
+  - RainViewer: global radar tile overlay (covers entire map)
+  - Open-Meteo: air quality (US AQI and pollutants) — no API key
+  - TTC (Toronto) via NextBus/UMO: arrivals by stop
+  - TransLink (Vancouver) RTTI: arrivals by stop (needs API key)
+
+  Notes for contributors:
+  - Keep UI wiring in bindUI().
+  - Network calls: small helpers with clear inputs/outputs and safe fallbacks.
+  - All state lives in the single `state` object below.
+*/
+
+// Global app state — one place to track everything
 const state = {
+  // Leaflet map instance
   map: null,
+  // TomTom POI markers currently on the map
   markers: [],
-  currentLatLng: { lat: 37.7749, lng: -122.4194 }, // fallback: San Francisco
+  // Currently selected/centered coordinate (fallback: San Francisco)
+  currentLatLng: { lat: 37.7749, lng: -122.4194 },
+  // The draggable pin indicating current location (not user-draggable by default)
   placeMarker: null,
+  // TomTom traffic flow tiles layer (added/removed when toggled)
   trafficLayer: null,
+  // Whether traffic layer + incident widgets are active
   trafficEnabled: false,
+  // Circle markers for traffic incidents (cleared on refresh)
   incidentMarkers: [],
+  // Route planning mode flag (enables map click handling)
   routingEnabled: false,
-  routePoints: [], // [start, end]
+  // Selected route points in order: [start, end]
+  routePoints: [],
   routeMarkers: [],
   routeLine: null,
-  routeReplaceTarget: null, // 'start' | 'end' | null
+  // When set, next map click replaces that endpoint: 'start' | 'end' | null
+  routeReplaceTarget: null,
+  // Weather overlay UI (CSS) + radar (tiles) toggle
   weatherOverlayEnabled: false,
+  // Current RainViewer tile layer instance
   weatherOverlayLayer: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
 
+// Runtime config injected by config.js (keys optional, app degrades gracefully)
 const CONFIG = (window.APP_CONFIG || {});
 
+/**
+ * Show a friendly setup overlay when keys are missing.
+ * Weatherbit and TomTom enhance the experience, but the app still runs without them.
+ */
 function showSetupOverlayIfNeeded() {
   const overlay = $('#setup-overlay');
   const hasNeeded = CONFIG.WEATHERBIT_API_KEY && CONFIG.TOMTOM_API_KEY;
@@ -30,6 +63,9 @@ function showSetupOverlayIfNeeded() {
   if (closeBtn) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
 }
 
+/**
+ * Create the Leaflet map, OSM tiles, traffic layer, and core map events.
+ */
 function initMapInstance(center) {
   const map = L.map('map').setView([center.lat, center.lng], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -51,7 +87,7 @@ function initMapInstance(center) {
     );
   }
   
-  // Update incidents and speed when map moves (if traffic is enabled)
+  // Update incidents and speed when map moves (only when traffic is on)
   map.on('moveend', () => {
     if (state.trafficEnabled) {
       const center = map.getCenter();
@@ -61,7 +97,7 @@ function initMapInstance(center) {
     }
   });
   
-  // Handle routing clicks
+  // Handle routing clicks when in routing mode
   map.on('click', (e) => {
     if (state.routingEnabled) {
       handleRouteClick(e.latlng);
@@ -69,6 +105,9 @@ function initMapInstance(center) {
   });
 }
 
+/**
+ * Simple search input using Nominatim; Enter triggers geocode.
+ */
 function attachSearch() {
   const input = document.getElementById('search-input');
   input.addEventListener('keydown', async (e) => {
@@ -80,6 +119,7 @@ function attachSearch() {
   });
 }
 
+/** Geocode the query with Nominatim and recentre the map */
 async function geocodeAndSet(query) {
   // Use Nominatim for free geocoding (usage policy applies)
   const url = new URL('https://nominatim.openstreetmap.org/search');
@@ -104,6 +144,9 @@ async function geocodeAndSet(query) {
   }
 }
 
+/**
+ * Set current center, move marker, refresh panels and overlays.
+ */
 function setLocation(pos) {
   state.currentLatLng = pos;
   state.map.setView([pos.lat, pos.lng], 13);
@@ -119,6 +162,9 @@ function setLocation(pos) {
   }
 }
 
+/**
+ * Ask the browser for geolocation; fallback handled by caller.
+ */
 async function useMyLocation() {
   if (!navigator.geolocation) return alert('Geolocation not supported');
   try {
@@ -135,6 +181,7 @@ async function useMyLocation() {
   }
 }
 
+/** Rough haversine distance in km for POI cards */
 function kmDistance(a, b) {
   const toRad = (d) => (d * Math.PI) / 180;
   const R = 6371;
@@ -145,6 +192,10 @@ function kmDistance(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s1 + s2));
 }
 
+/**
+ * Load current weather panel from Weatherbit (requires API key).
+ * Non-blocking; UI degrades if unavailable.
+ */
 async function loadWeather({ lat, lng }) {
   if (!CONFIG.WEATHERBIT_API_KEY) return;
   const weatherEl = document.getElementById('weather');
@@ -239,6 +290,7 @@ function describeAqi(aqi) {
   return { label: 'Hazardous', className: 'aqi-hazard' };
 }
 
+/** Map Weatherbit condition codes to a CSS overlay class */
 function mapWeatherCodeToOverlay(code) {
   if (!code && code !== 0) return 'clear';
   if (code >= 200 && code < 300) return 'storm';
@@ -250,6 +302,7 @@ function mapWeatherCodeToOverlay(code) {
   return 'clear';
 }
 
+/** Toggle both the CSS weather veil and the radar tiles */
 function toggleWeatherOverlay() {
   state.weatherOverlayEnabled = !state.weatherOverlayEnabled;
   const btn = document.getElementById('btn-toggle-weather-overlay');
@@ -272,6 +325,9 @@ function toggleWeatherOverlay() {
   }
 }
 
+/**
+ * Pull current weather for label + set CSS overlay theme (clouds/rain/etc).
+ */
 function updateWeatherOverlay() {
   if (!state.weatherOverlayEnabled || !CONFIG.WEATHERBIT_API_KEY) return;
   const overlay = document.getElementById('weather-overlay');
@@ -301,6 +357,7 @@ function updateWeatherOverlay() {
     });
 }
 
+// Remove RainViewer tile layer if present
 function removeWeatherOverlayTiles() {
   if (state.weatherOverlayLayer) {
     state.map.removeLayer(state.weatherOverlayLayer);
@@ -308,6 +365,10 @@ function removeWeatherOverlayTiles() {
   }
 }
 
+/**
+ * Fetch RainViewer latest frame metadata and overlay radar tiles across the map.
+ * No API key required.
+ */
 async function updateWeatherOverlayTiles() {
   if (!state.weatherOverlayEnabled) return;
   try {
@@ -335,11 +396,13 @@ async function updateWeatherOverlayTiles() {
   }
 }
 
+// Remove all TomTom POI markers from the map
 function clearPOIMarkers() {
   for (const m of state.markers) state.map.removeLayer(m);
   state.markers = [];
 }
 
+/** Render the sidebar list of POIs with distance and address */
 function renderPOIList(items) {
   const ul = document.getElementById('poi-list');
   ul.innerHTML = '';
@@ -481,6 +544,9 @@ async function fetchTransLinkPredictions(stopId) {
   return items.sort((a, b) => (a.minutes || 0) - (b.minutes || 0));
 }
 
+/**
+ * Fetch nearby POIs from TomTom Search by category and drop markers.
+ */
 async function refreshPOIs() {
   if (!CONFIG.TOMTOM_API_KEY) return;
   const category = document.getElementById('poi-category').value || 'restaurant';
@@ -519,6 +585,7 @@ async function refreshPOIs() {
   }
 }
 
+/** Wire up all UI buttons, inputs, and Enter-key shortcuts */
 function bindUI() {
   $('#btn-my-location').addEventListener('click', useMyLocation);
   $('#btn-refresh-poi').addEventListener('click', refreshPOIs);
@@ -551,6 +618,7 @@ function bindUI() {
   });
 }
 
+/** Add/remove TomTom traffic tiles and show incidents + speed estimate */
 function toggleTraffic() {
   if (!state.trafficLayer) {
     alert('Traffic layer requires TomTom API key in config.js');
@@ -580,11 +648,15 @@ function toggleTraffic() {
   }
 }
 
+// Remove incident markers from the map
 function clearIncidentMarkers() {
   for (const m of state.incidentMarkers) state.map.removeLayer(m);
   state.incidentMarkers = [];
 }
 
+/**
+ * Load TomTom traffic incidents for current bounds and render both list + markers.
+ */
 async function refreshTrafficIncidents() {
   if (!CONFIG.TOMTOM_API_KEY) return;
   const { lat, lng } = state.currentLatLng;
@@ -644,6 +716,7 @@ async function refreshTrafficIncidents() {
   }
 }
 
+/** Render the incidents list in the Traffic panel */
 function renderIncidents(incidents) {
   const listEl = document.getElementById('incidents-list');
   if (!incidents || incidents.length === 0) {
@@ -681,6 +754,7 @@ function renderIncidents(incidents) {
   }
 }
 
+// Small emoji helper for incident category
 function getIncidentIcon(category) {
   const icons = {
     0: '⚠️', 1: '🚧', 2: '🚗', 3: '🚙', 4: '🚛',
@@ -690,6 +764,7 @@ function getIncidentIcon(category) {
   return icons[category] || '⚠️';
 }
 
+// Human-friendly label for incident category
 function getIncidentType(category) {
   const types = {
     0: 'Unknown', 1: 'Accident', 2: 'Fog', 3: 'Dangerous Conditions',
@@ -699,11 +774,13 @@ function getIncidentType(category) {
   return types[category] || 'Incident';
 }
 
+// Map numeric delay magnitude to label
 function getDelayText(magnitude) {
   const delays = ['None', 'Minor', 'Moderate', 'Major', 'Severe'];
   return delays[magnitude] || 'Unknown';
 }
 
+/** A light heuristic to suggest area speed based on zoom */
 function updateSpeedInfo() {
   const zoom = state.map.getZoom();
   const infoEl = document.getElementById('speed-info');
@@ -722,6 +799,7 @@ function updateSpeedInfo() {
   `;
 }
 
+/** Enter/exit routing mode and update sidebar/state */
 function toggleRouting() {
   state.routingEnabled = !state.routingEnabled;
   const sidebarEl = document.getElementById('route-sidebar');
@@ -742,6 +820,7 @@ function toggleRouting() {
   }
 }
 
+/** Choose which endpoint (start/end) the next click should replace */
 function setRouteReplaceMode(target) {
   state.routeReplaceTarget = target;
   const startBtn = document.getElementById('btn-replace-start');
@@ -756,6 +835,9 @@ function setRouteReplaceMode(target) {
   document.getElementById('routing-status').textContent = msg;
 }
 
+/**
+ * Geocode and set a route endpoint from text input.
+ */
 async function setRoutePointFromInput(type) {
   const inputId = type === 'start' ? 'route-start-input' : 'route-end-input';
   const input = document.getElementById(inputId);
@@ -816,6 +898,7 @@ async function setRoutePointFromInput(type) {
   }
 }
 
+/** Add a simple emoji marker for start/end */
 function addRouteMarker(pos, type) {
   const icon = type === 'start' ? '🟢' : '🔴';
   const label = type === 'start' ? 'Start' : 'End';
@@ -832,6 +915,7 @@ function addRouteMarker(pos, type) {
   return marker;
 }
 
+/** Handle map clicks to create or replace route endpoints */
 function handleRouteClick(latlng) {
   const pos = { lat: latlng.lat, lng: latlng.lng };
 
@@ -869,6 +953,7 @@ function handleRouteClick(latlng) {
   }
 }
 
+/** Reset the route, remove markers/polyline, and clear UI */
 function clearRoute() {
   state.routePoints = [];
   for (const m of state.routeMarkers) state.map.removeLayer(m);
@@ -886,6 +971,7 @@ function clearRoute() {
   setRouteReplaceMode(null);
 }
 
+/** Call TomTom Routing API and render geometry + summary */
 async function calculateRoute() {
   if (!CONFIG.TOMTOM_API_KEY) {
     alert('Routing requires TomTom API key in config.js');
@@ -921,6 +1007,7 @@ async function calculateRoute() {
   }
 }
 
+/** Draw the polyline, fit bounds, and show summary */
 function displayRoute(route) {
   const summary = route.summary;
   const legs = route.legs || [];
@@ -962,6 +1049,7 @@ function displayRoute(route) {
   renderDirections(legs);
 }
 
+/** Build a friendly turn-by-turn list from TomTom instructions */
 function renderDirections(legs) {
   const listEl = document.getElementById('directions-list');
   listEl.innerHTML = '';
@@ -991,6 +1079,7 @@ function renderDirections(legs) {
   }
 }
 
+// Minimal set of emoji for common maneuvers
 function getDirectionIcon(maneuver) {
   const icons = {
     'ARRIVE': '🏁',
@@ -1011,6 +1100,7 @@ function getDirectionIcon(maneuver) {
   return icons[maneuver] || '➡️';
 }
 
+/** App entry: init map, bind UI, and kick off initial loads */
 async function main() {
   showSetupOverlayIfNeeded();
   try {

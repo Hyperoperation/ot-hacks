@@ -1,3 +1,4 @@
+/* Theme variables */
 :root {
   --bg: #0f172a;
   --panel: #111827;
@@ -7,6 +8,7 @@
   --accent-2: #38bdf8;
 }
 
+/* Base resets */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -16,6 +18,7 @@ body {
   color: var(--text);
 }
 
+/* Top app bar */
 .app-header {
   display: flex;
   align-items: center;
@@ -54,12 +57,14 @@ body {
 }
 .controls button:hover { border-color: var(--accent-2); }
 
+/* Two-column layout: sidebar + map */
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
   height: calc(100% - 57px);
 }
 
+/* Left sidebar scroll area */
 .sidebar {
   overflow-y: auto;
   overflow-x: hidden;
@@ -67,12 +72,15 @@ body {
   border-right: 1px solid #1f2937;
 }
 
+/* Generic card/panel */
 .panel { background: var(--panel); border: 1px solid #243041; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
 .panel h2 { margin: 0 0 8px; font-size: 16px; }
 
+/* Map container */
 .map-wrap { position: relative; }
 .map { position: absolute; inset: 0; }
 
+/* Weather overlay veil (CSS-driven appearance) */
 .weather-overlay {
   position: absolute;
   inset: 0;
@@ -104,6 +112,7 @@ body {
 .weather-overlay.storm { background: linear-gradient(180deg, rgba(88,28,135,0.4), rgba(30,27,75,0.4)), rgba(15,23,42,0.45); }
 .weather-overlay.clear { background: linear-gradient(180deg, rgba(56,189,248,0.2), rgba(14,165,233,0.08)); }
 
+/* Weather summary styles */
 .weather { color: var(--muted); font-size: 14px; line-height: 1.4; }
 .weather .big { font-size: 28px; font-weight: 600; color: var(--text); }
 .weather .sub { color: var(--muted); }
@@ -122,11 +131,13 @@ body {
 .aqi-hazard { background: #3a0d0d; color: #f87171; }
 .aqi-unknown { background: #1f2937; color: var(--muted); }
 
+/* Nearby (POI) list */
 .poi-list { list-style: none; padding: 0; margin: 0; }
 .poi-list li { padding: 8px; border: 1px solid #243041; background: #0f172a; border-radius: 8px; margin-bottom: 8px; }
 .poi-list li .poi-name { font-weight: 600; }
 .poi-list li .poi-distance { color: var(--muted); font-size: 12px; }
 
+/* Transit panel controls + results */
 .transit-controls {
   display: flex;
   flex-wrap: wrap;
@@ -179,6 +190,7 @@ body {
 .transit-meta { font-size: 12px; color: var(--muted); }
 .transit-time { font-weight: 600; color: var(--accent-2); white-space: nowrap; }
 
+/* Traffic monitor styles */
 .traffic-legend { font-size: 14px; }
 .traffic-status { margin-bottom: 12px; font-weight: 600; }
 .traffic-status span { color: var(--muted); }
@@ -192,6 +204,7 @@ body {
 .incident-desc { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
 .incident-delay { font-size: 11px; color: var(--accent); }
 
+/* Route sidebar (controls + steps) */
 .routing-info select { background: #0f172a; color: var(--text); border: 1px solid #243041; padding: 6px 8px; border-radius: 6px; }
 .routing-info button { background: #152033; color: var(--text); border: 1px solid #243041; border-radius: 6px; cursor: pointer; }
 .routing-info button:hover { border-color: var(--accent-2); }
@@ -204,6 +217,7 @@ body {
 
 .route-marker { background: transparent; border: none; }
 
+/* Sliding route sidebar */
 .route-sidebar {
   position: fixed;
   top: 57px;
@@ -264,6 +278,7 @@ body {
   padding: 16px;
 }
 
+/* Setup overlay */
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .overlay.hidden { display: none; }
 .overlay-card { background: #0b1220; border: 1px solid #243041; border-radius: 12px; padding: 16px; max-width: 560px; }

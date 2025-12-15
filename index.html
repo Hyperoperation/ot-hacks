@@ -14,9 +14,10 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <!-- Top app bar with brand + primary controls -->
     <header class="app-header">
       <h1>Explorer</h1>
-      <!--Do we need this div?-->
+      <!-- Core search + map layer toggles -->
       <div class="controls">
         <input id="search-input" type="text" placeholder="Search a place (OpenStreetMap)" />
         <button id="btn-my-location" title="Use my location">📍</button>
@@ -37,20 +38,25 @@
       </div>
     </header>
 
+    <!-- Main layout: left sidebar panels + right map -->
     <main class="layout">
       <section class="sidebar">
+        <!-- Current weather panel (Weatherbit) -->
         <div class="panel">
           <h2>Weather</h2>
           <div id="weather" class="weather">Set a location to load weather…</div>
         </div>
+        <!-- Air quality (Open-Meteo — no key) -->
         <div class="panel">
           <h2>Air Quality</h2>
           <div id="air-quality" class="air-quality">Set a location to load AQI…</div>
         </div>
+        <!-- Nearby POIs (TomTom Search) -->
         <div class="panel">
           <h2>Nearby (TomTom)</h2>
           <ul id="poi-list" class="poi-list"></ul>
         </div>
+        <!-- Transit arrival lookups (TTC / TransLink) -->
         <div class="panel">
           <h2>Transit (TTC / TransLink)</h2>
           <div class="transit-controls">
@@ -63,6 +69,7 @@
           </div>
           <div id="transit-results" class="transit-results">Enter a stop ID and choose an agency.</div>
         </div>
+        <!-- Traffic monitor (TomTom flow + incidents) -->
         <div class="panel" id="traffic-panel" style="display:none;">
           <h2>Traffic Monitor</h2>
           <div class="traffic-legend">
@@ -83,13 +90,14 @@
           </div>
         </div>
       </section>
+      <!-- Map area with Leaflet and optional weather overlay -->
       <section class="map-wrap">
         <div id="map" class="map"></div>
         <div id="weather-overlay" class="weather-overlay" style="display:none;"></div>
       </section>
     </main>
 
-    <!-- Right Sidebar for Route Planner -->
+    <!-- Right Sidebar for Route Planner (slides in/out) -->
     <aside id="route-sidebar" class="route-sidebar">
       <div class="route-sidebar-header">
         <h2>Route Planner</h2>
@@ -143,7 +151,7 @@
       </div>
     </aside>
 
-    <!--le mao-->
+    <!-- Simple overlay prompting user to add API keys (can be dismissed) -->
     <div id="setup-overlay" class="overlay hidden">
       <div class="overlay-card">
         <h3>Setup Required</h3>
