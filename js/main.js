@@ -235,7 +235,6 @@ function bindUI() {
   $('#btn-toggle-routing').addEventListener('click', toggleRouting);
   $('#btn-close-route-sidebar').addEventListener('click', toggleRouting);
   $('#btn-clear-route').addEventListener('click', clearRoute);
-  $('#btn-toggle-incidents').addEventListener('click', toggleIncidentsView);
   $('#btn-set-start').addEventListener('click', () => setRoutePointFromInput('start'));
   $('#btn-set-end').addEventListener('click', () => setRoutePointFromInput('end'));
   $('#btn-replace-start').addEventListener('click', () => setRouteReplaceMode('start'));
@@ -424,93 +423,6 @@ function updateSpeedInfo() {
     <div style="color:var(--accent-2);">${speedEstimate}</div>
     <div style="font-size:12px;margin-top:2px;">Zoom: ${zoom} • Estimated for area type</div>
   `;
-}
-
-function toggleIncidentsView() {
-  const panelEl = document.getElementById('incidents-panel');
-  const btn = document.getElementById('btn-toggle-incidents');
-  const isVisible = panelEl.style.display !== 'none';
-  
-  if (isVisible) {
-    panelEl.style.display = 'none';
-    btn.style.borderColor = '#243041';
-    btn.style.background = '#152033';
-  } else {
-    panelEl.style.display = 'block';
-    btn.style.borderColor = '#fb923c';
-    btn.style.background = '#2a1810';
-    loadStandaloneIncidents();
-  }
-}
-
-async function loadStandaloneIncidents() {
-  if (!CONFIG.TOMTOM_API_KEY) {
-    document.getElementById('incidents-standalone-list').textContent = 'Incidents require TomTom API key in config.js';
-    return;
-  }
-  
-  const { lat, lng } = state.currentLatLng;
-  const bounds = state.map.getBounds();
-  const sw = bounds.getSouthWest();
-  const ne = bounds.getNorthEast();
-  
-  const url = new URL('https://api.tomtom.com/traffic/services/5/incidentDetails');
-  url.searchParams.set('key', CONFIG.TOMTOM_API_KEY);
-  url.searchParams.set('bbox', `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`);
-  url.searchParams.set('fields', '{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime}}}');
-  url.searchParams.set('language', 'en-US');
-
-  try {
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error('Incidents API error');
-    const data = await res.json();
-    const incidents = data.incidents || [];
-    
-    renderStandaloneIncidents(incidents);
-  } catch (e) {
-    document.getElementById('incidents-standalone-list').textContent = 'Failed to load incidents.';
-  }
-}
-
-function renderStandaloneIncidents(incidents) {
-  const listEl = document.getElementById('incidents-standalone-list');
-  if (!incidents || incidents.length === 0) {
-    listEl.textContent = 'No incidents in current area.';
-    return;
-  }
-  
-  listEl.innerHTML = '';
-  const sortedIncidents = incidents.sort((a, b) => {
-    const delayA = (a.properties && a.properties.magnitudeOfDelay) || 0;
-    const delayB = (b.properties && b.properties.magnitudeOfDelay) || 0;
-    return delayB - delayA; // Sort by severity descending
-  });
-  
-  for (const inc of sortedIncidents.slice(0, 20)) {
-    const props = inc.properties || {};
-    const iconCat = props.iconCategory || 0;
-    const delay = props.magnitudeOfDelay || 0;
-    const desc = props.events && props.events[0] ? props.events[0].description : 'Traffic incident';
-    const startTime = props.startTime ? new Date(props.startTime).toLocaleString() : 'Unknown';
-    
-    const item = document.createElement('div');
-    item.className = 'incident-item';
-    item.innerHTML = `
-      <div class="incident-type">${getIncidentIcon(iconCat)} ${getIncidentType(iconCat)}</div>
-      <div class="incident-desc">${desc}</div>
-      <div class="incident-delay">Delay: ${getDelayText(delay)} • Started: ${startTime}</div>
-    `;
-    
-    if (inc.geometry && inc.geometry.type === 'Point') {
-      const [lng, lat] = inc.geometry.coordinates;
-      item.style.cursor = 'pointer';
-      item.addEventListener('click', () => {
-        state.map.setView([lat, lng], 15);
-      });
-    }
-    
-    listEl.appendChild(item);
-  }
 }
 
 function toggleRouting() {
