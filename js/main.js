@@ -14,6 +14,8 @@ const state = {
   routeMarkers: [],
   routeLine: null,
   routeReplaceTarget: null, // 'start' | 'end' | null
+  weatherOverlayEnabled: false,
+  weatherOverlayLayer: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -110,6 +112,10 @@ function setLocation(pos) {
   }
   loadWeather(pos).catch(() => {});
   refreshPOIs().catch(() => {});
+  if (state.weatherOverlayEnabled) {
+    updateWeatherOverlay();
+    updateWeatherOverlayTiles();
+  }
 }
 
 async function useMyLocation() {
@@ -164,6 +170,102 @@ async function loadWeather({ lat, lng }) {
     `;
   } catch (e) {
     weatherEl.textContent = 'Failed to load weather.';
+  }
+}
+
+function mapWeatherCodeToOverlay(code) {
+  if (!code && code !== 0) return 'clear';
+  if (code >= 200 && code < 300) return 'storm';
+  if (code >= 300 && code < 600) return 'rain';
+  if (code >= 600 && code < 700) return 'snow';
+  if (code >= 700 && code < 800) return 'fog';
+  if (code === 800) return 'clear';
+  if (code > 800) return 'clouds';
+  return 'clear';
+}
+
+function toggleWeatherOverlay() {
+  state.weatherOverlayEnabled = !state.weatherOverlayEnabled;
+  const btn = document.getElementById('btn-toggle-weather-overlay');
+  const overlay = document.getElementById('weather-overlay');
+  if (!btn || !overlay) return;
+
+  if (state.weatherOverlayEnabled) {
+    btn.style.borderColor = '#38bdf8';
+    btn.style.background = '#0b172c';
+    overlay.style.display = 'flex';
+    updateWeatherOverlay();
+    updateWeatherOverlayTiles();
+  } else {
+    btn.style.borderColor = '#243041';
+    btn.style.background = '#152033';
+    overlay.style.display = 'none';
+    overlay.className = 'weather-overlay';
+    overlay.innerHTML = '';
+    removeWeatherOverlayTiles();
+  }
+}
+
+function updateWeatherOverlay() {
+  if (!state.weatherOverlayEnabled || !CONFIG.WEATHERBIT_API_KEY) return;
+  const overlay = document.getElementById('weather-overlay');
+  if (!overlay) return;
+
+  const { lat, lng } = state.currentLatLng;
+  const url = new URL('https://api.weatherbit.io/v2.0/current');
+  url.searchParams.set('lat', lat);
+  url.searchParams.set('lon', lng);
+  url.searchParams.set('key', CONFIG.WEATHERBIT_API_KEY);
+
+  fetch(url.toString())
+    .then((res) => res.json())
+    .then((data) => {
+      const d = data && data.data && data.data[0];
+      if (!d) throw new Error('No weather data');
+      const tempC = Math.round(d.temp);
+      const desc = d.weather && d.weather.description ? d.weather.description : 'Unknown';
+      const code = d.weather && d.weather.code ? d.weather.code : 800;
+      const overlayClass = mapWeatherCodeToOverlay(code);
+      overlay.className = `weather-overlay ${overlayClass}`;
+      overlay.innerHTML = `<div class="overlay-label">${desc} • ${tempC}°C</div>`;
+      overlay.style.display = 'flex';
+    })
+    .catch(() => {
+      // keep silent; overlay will remain as-is
+    });
+}
+
+function removeWeatherOverlayTiles() {
+  if (state.weatherOverlayLayer) {
+    state.map.removeLayer(state.weatherOverlayLayer);
+    state.weatherOverlayLayer = null;
+  }
+}
+
+async function updateWeatherOverlayTiles() {
+  if (!state.weatherOverlayEnabled) return;
+  try {
+    // RainViewer public radar tiles (no key required)
+    const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    if (!res.ok) throw new Error('Radar meta fetch failed');
+    const data = await res.json();
+    const radar = data && data.radar;
+    const latestPast = radar && radar.past ? radar.past[radar.past.length - 1] : null;
+    const latestNowcast = radar && radar.nowcast && radar.nowcast[0] ? radar.nowcast[0] : null;
+    const chosen = latestNowcast || latestPast;
+    if (!chosen || !chosen.path) throw new Error('No radar frames');
+
+    removeWeatherOverlayTiles();
+
+    const tileUrl = `https://tilecache.rainviewer.com${chosen.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    const layer = L.tileLayer(tileUrl, {
+      opacity: 0.55,
+      attribution: 'Radar (c) RainViewer',
+    });
+    layer.addTo(state.map);
+    state.weatherOverlayLayer = layer;
+  } catch (err) {
+    // silent fail; keep previous layer if any
   }
 }
 
@@ -232,6 +334,7 @@ function bindUI() {
   $('#btn-refresh-poi').addEventListener('click', refreshPOIs);
   $('#poi-category').addEventListener('change', refreshPOIs);
   $('#btn-toggle-traffic').addEventListener('click', toggleTraffic);
+  $('#btn-toggle-weather-overlay').addEventListener('click', toggleWeatherOverlay);
   $('#btn-toggle-routing').addEventListener('click', toggleRouting);
   $('#btn-close-route-sidebar').addEventListener('click', toggleRouting);
   $('#btn-clear-route').addEventListener('click', clearRoute);

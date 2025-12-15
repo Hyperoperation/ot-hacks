@@ -73,6 +73,37 @@ body {
 .map-wrap { position: relative; }
 .map { position: absolute; inset: 0; }
 
+.weather-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 850;
+  display: none;
+  color: #e5e7eb;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.weather-overlay .overlay-label {
+  background: rgba(0,0,0,0.35);
+  padding: 8px 10px;
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  max-width: 240px;
+}
+
+.weather-overlay.clouds { background: linear-gradient(180deg, rgba(148,163,184,0.35), rgba(148,163,184,0.15)); }
+.weather-overlay.rain { background: repeating-linear-gradient(135deg, rgba(56,189,248,0.28) 0, rgba(56,189,248,0.28) 2px, rgba(12,74,110,0.35) 2px, rgba(12,74,110,0.35) 4px), rgba(15,23,42,0.35); }
+.weather-overlay.snow { background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.25) 0 6%, transparent 12%), radial-gradient(circle at 80% 30%, rgba(255,255,255,0.25) 0 6%, transparent 12%), rgba(30,41,59,0.35); }
+.weather-overlay.fog { background: linear-gradient(0deg, rgba(148,163,184,0.35), rgba(148,163,184,0.2)), rgba(15,23,42,0.25); }
+.weather-overlay.storm { background: linear-gradient(180deg, rgba(88,28,135,0.4), rgba(30,27,75,0.4)), rgba(15,23,42,0.45); }
+.weather-overlay.clear { background: linear-gradient(180deg, rgba(56,189,248,0.2), rgba(14,165,233,0.08)); }
+
 .weather { color: var(--muted); font-size: 14px; line-height: 1.4; }
 .weather .big { font-size: 28px; font-weight: 600; color: var(--text); }
 .weather .sub { color: var(--muted); }
