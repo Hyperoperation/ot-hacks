@@ -291,6 +291,130 @@ function renderPOIList(items) {
   }
 }
 
+async function fetchTransitArrivals() {
+  const agencyEl = document.getElementById('transit-agency');
+  const stopInput = document.getElementById('transit-stop');
+  const resultsEl = document.getElementById('transit-results');
+  if (!agencyEl || !stopInput || !resultsEl) return;
+
+  const agency = agencyEl.value;
+  const stopId = stopInput.value.trim();
+  if (!stopId) {
+    resultsEl.textContent = 'Enter a stop ID first.';
+    return;
+  }
+
+  resultsEl.textContent = 'Loading arrivals...';
+
+  try {
+    let items = [];
+    if (agency === 'ttc') {
+      items = await fetchTtcPredictions(stopId);
+    } else if (agency === 'translink') {
+      items = await fetchTransLinkPredictions(stopId);
+    }
+
+    renderTransitResults(items, agency);
+  } catch (err) {
+    resultsEl.textContent = 'Failed to load arrivals. Check stop ID or API key.';
+  }
+}
+
+function renderTransitResults(items, agency) {
+  const target = document.getElementById('transit-results');
+  if (!target) return;
+
+  if (!items || items.length === 0) {
+    target.textContent = 'No upcoming vehicles for this stop.';
+    return;
+  }
+
+  const agencyLabel = agency === 'translink' ? 'TransLink' : 'TTC';
+
+  const html = items.slice(0, 12).map((it) => {
+    const mins = Number.isFinite(it.minutes) ? `${it.minutes} min` : 'Due';
+    const head = it.headsign || 'Inbound';
+    const route = it.route || 'Route';
+    const stop = it.stopTitle ? ` • ${it.stopTitle}` : '';
+    const vehicle = it.vehicle ? ` • Vehicle ${it.vehicle}` : '';
+    return `
+      <div class="transit-item">
+        <div class="transit-line">${route} • ${head}</div>
+        <div class="transit-meta">${agencyLabel}${stop}${vehicle}</div>
+        <div class="transit-time">${mins}</div>
+      </div>
+    `;
+  }).join('');
+
+  target.innerHTML = html;
+}
+
+async function fetchTtcPredictions(stopId) {
+  const url = `https://retro.umoiq.com/service/publicJSONFeed?command=predictions&a=ttc&stopId=${encodeURIComponent(stopId)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('TTC API error');
+  const data = await res.json();
+
+  const raw = data && data.predictions;
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const items = [];
+
+  for (const p of list) {
+    const stopTitle = p.stopTitle || '';
+    const route = p.routeTitle || p.routeTag || 'Route';
+    const dirs = p.direction ? (Array.isArray(p.direction) ? p.direction : [p.direction]) : [];
+    for (const dir of dirs) {
+      const headsign = dir.title || '';
+      const preds = dir.prediction ? (Array.isArray(dir.prediction) ? dir.prediction : [dir.prediction]) : [];
+      for (const pr of preds) {
+        const minutes = Number(pr.minutes);
+        items.push({
+          agency: 'ttc',
+          route,
+          headsign,
+          minutes: Number.isFinite(minutes) ? minutes : null,
+          vehicle: pr.vehicle || '',
+          stopTitle,
+          branch: pr.branch || '',
+        });
+      }
+    }
+  }
+
+  return items.sort((a, b) => (a.minutes || 0) - (b.minutes || 0));
+}
+
+async function fetchTransLinkPredictions(stopId) {
+  if (!CONFIG.TRANSLINK_API_KEY) {
+    throw new Error('TransLink API key missing');
+  }
+  const url = `https://api.translink.ca/rttiapi/v1/stops/${encodeURIComponent(stopId)}/estimates?apikey=${encodeURIComponent(CONFIG.TRANSLINK_API_KEY)}`;
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!res.ok) throw new Error('TransLink API error');
+  const data = await res.json();
+
+  const items = [];
+  for (const route of data || []) {
+    const routeId = route.RouteNo || route.RouteName || 'Route';
+    const headsign = route.RouteName || route.Destination || '';
+    const stopTitle = route.StopName || '';
+    const schedules = Array.isArray(route.Schedules) ? route.Schedules : [];
+    for (const sch of schedules) {
+      const minutes = Number(sch.ExpectedCountdown);
+      items.push({
+        agency: 'translink',
+        route: routeId,
+        headsign,
+        minutes: Number.isFinite(minutes) ? minutes : null,
+        vehicle: sch.VehicleNo || '',
+        stopTitle,
+      });
+    }
+  }
+
+  return items.sort((a, b) => (a.minutes || 0) - (b.minutes || 0));
+}
+
 async function refreshPOIs() {
   if (!CONFIG.TOMTOM_API_KEY) return;
   const category = document.getElementById('poi-category').value || 'restaurant';
@@ -338,6 +462,7 @@ function bindUI() {
   $('#btn-toggle-routing').addEventListener('click', toggleRouting);
   $('#btn-close-route-sidebar').addEventListener('click', toggleRouting);
   $('#btn-clear-route').addEventListener('click', clearRoute);
+  $('#btn-transit-fetch').addEventListener('click', fetchTransitArrivals);
   $('#btn-set-start').addEventListener('click', () => setRoutePointFromInput('start'));
   $('#btn-set-end').addEventListener('click', () => setRoutePointFromInput('end'));
   $('#btn-replace-start').addEventListener('click', () => setRouteReplaceMode('start'));
@@ -354,6 +479,9 @@ function bindUI() {
   });
   $('#route-end-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') setRoutePointFromInput('end');
+  });
+  $('#transit-stop').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') fetchTransitArrivals();
   });
 }
 

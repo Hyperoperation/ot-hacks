@@ -47,6 +47,18 @@
           <h2>Nearby (TomTom)</h2>
           <ul id="poi-list" class="poi-list"></ul>
         </div>
+        <div class="panel">
+          <h2>Transit (TTC / TransLink)</h2>
+          <div class="transit-controls">
+            <select id="transit-agency" title="Transit agency">
+              <option value="ttc" selected>TTC (Toronto)</option>
+              <option value="translink">TransLink (Vancouver)</option>
+            </select>
+            <input id="transit-stop" type="text" placeholder="Stop ID (e.g. 14635)" />
+            <button id="btn-transit-fetch">Get Arrivals</button>
+          </div>
+          <div id="transit-results" class="transit-results">Enter a stop ID and choose an agency.</div>
+        </div>
         <div class="panel" id="traffic-panel" style="display:none;">
           <h2>Traffic Monitor</h2>
           <div class="traffic-legend">

@@ -113,6 +113,58 @@ body {
 .poi-list li .poi-name { font-weight: 600; }
 .poi-list li .poi-distance { color: var(--muted); font-size: 12px; }
 
+.transit-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transit-controls select,
+.transit-controls input {
+  background: #0f172a;
+  color: var(--text);
+  border: 1px solid #243041;
+  padding: 8px 10px;
+  border-radius: 8px;
+  flex: 1 1 120px;
+}
+
+.transit-controls button {
+  background: #152033;
+  color: var(--text);
+  border: 1px solid #243041;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.transit-controls button:hover { border-color: var(--accent-2); }
+
+.transit-results {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.transit-item {
+  padding: 8px;
+  border: 1px solid #243041;
+  background: #0f172a;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transit-line { font-weight: 600; color: var(--text); }
+.transit-meta { font-size: 12px; color: var(--muted); }
+.transit-time { font-weight: 600; color: var(--accent-2); white-space: nowrap; }
+
 .traffic-legend { font-size: 14px; }
 .traffic-status { margin-bottom: 12px; font-weight: 600; }
 .traffic-status span { color: var(--muted); }
